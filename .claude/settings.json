@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x \"/Users/kaviya/Desktop/Borderless radiology backend/docker/postgres-init.sh\")"
+    ]
+  }
+}
