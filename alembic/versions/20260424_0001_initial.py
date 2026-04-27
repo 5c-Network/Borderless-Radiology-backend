@@ -148,7 +148,7 @@ def upgrade() -> None:
         sa.Column(
             "rad_id",
             sa.String(64),
-            sa.ForeignKey(f'"{SCHEMA}".rad_state.rad_id', ondelete="CASCADE"),
+            sa.ForeignKey(f"{SCHEMA}.rad_state.rad_id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("study_iuid", sa.String(255), nullable=False),
@@ -188,7 +188,7 @@ def upgrade() -> None:
         sa.Column(
             "rad_id",
             sa.String(64),
-            sa.ForeignKey(f'"{SCHEMA}".rad_state.rad_id', ondelete="CASCADE"),
+            sa.ForeignKey(f"{SCHEMA}.rad_state.rad_id", ondelete="CASCADE"),
             nullable=False,
         ),
         sa.Column("study_iuid", sa.String(255), nullable=False),
