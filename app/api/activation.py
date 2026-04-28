@@ -1,11 +1,11 @@
 """Activation-data endpoint.
 
-DEPRECATED. Replaced by POST /api/v1/incubation/webhook (event-driven flow
-in app/api/incubation_webhook.py). Kept available during the n8n cutover;
-remove once the upstream workflow no longer references it.
-
-Original contract:
-    GET /api/v1/activation-data/?rad_id=<id>&study_iuids=<uid1,uid2>
+    GET /api/v1/activation-data/
+        ?rad_id=<id>
+        &study_iuids=<uid1,uid2>           (optional — direct lookup mode)
+        &event=start-reporting|case-submitted   (optional — informational)
+        &modalities=CT,MRI                 (optional — stored as modality_preferred
+                                            on first call; restricts the pick)
     Authorization: <api_auth_key>
 
 Response: JSON array of {history, rules, dicomData}.
@@ -34,6 +34,14 @@ async def activation_data(
         default=None,
         description="Comma-separated list of study_iuids. If omitted, we pick randomly from unused pool cases.",
     ),
+    event: str | None = Query(
+        default=None,
+        description="start-reporting | case-submitted (informational; pick logic still derives first-vs-subsequent from assignments).",
+    ),
+    modalities: str | None = Query(
+        default=None,
+        description="Comma-separated modality tokens (e.g. 'CT,MRI'). Stored as modality_preferred on the rad's first call; subsequent calls reuse the stored value.",
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivationDataItem]:
     uid_list: list[str] | None = None
@@ -42,6 +50,18 @@ async def activation_data(
         if not uid_list:
             uid_list = None
 
-    result = await get_activation_data(session, rad_id=rad_id, study_iuids=uid_list)
+    modality_list: list[str] | None = None
+    if modalities:
+        modality_list = [m.strip().upper() for m in modalities.split(",") if m.strip()]
+        if not modality_list:
+            modality_list = None
+
+    result = await get_activation_data(
+        session,
+        rad_id=rad_id,
+        study_iuids=uid_list,
+        event=event,
+        modalities=modality_list,
+    )
     await session.commit()
     return result.items
