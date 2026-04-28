@@ -12,6 +12,7 @@ from fastapi import FastAPI
 from app.api.activation import router as activation_router
 from app.api.grading import router as grading_router
 from app.api.health import router as health_router
+from app.api.incubation_webhook import router as incubation_webhook_router
 from app.api.pool import router as pool_router
 from app.config import get_settings
 from app.jobs.seven_day_timeout import run_seven_day_sweep
@@ -56,5 +57,6 @@ app = FastAPI(
 
 app.include_router(health_router)
 app.include_router(activation_router)
+app.include_router(incubation_webhook_router)
 app.include_router(grading_router)
 app.include_router(pool_router)

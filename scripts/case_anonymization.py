@@ -19,7 +19,11 @@ Required env (.env):
     5C_API_AUTH_KEY       - Sent verbatim as the Authorization header.
 
 Usage:
+<<<<<<< HEAD
     python Borderless-Radiology-backend/scripts/case_anonymization.py
+=======
+    python scripts/case_anonymization.py
+>>>>>>> bcb5126 (n8n flow integration)
 """
 
 from __future__ import annotations
@@ -92,9 +96,17 @@ def starting_demo_index(existing_blobs: list[str]) -> int:
         if not blob:
             continue
         try:
+<<<<<<< HEAD
             name = json.loads(blob).get("pat_name_fk", "") or ""
         except (TypeError, ValueError):
             continue
+=======
+            obj = json.loads(blob)
+        except (TypeError, ValueError):
+            continue
+        inner = obj.get("dicomData", obj) if isinstance(obj, dict) else {}
+        name = inner.get("pat_name_fk", "") or ""
+>>>>>>> bcb5126 (n8n flow integration)
         m = _DEMO_RE.search(name)
         if m:
             highest = max(highest, int(m.group(1)))
@@ -213,7 +225,11 @@ async def main() -> int:
                     dicom_data = anonymise(reshape(api_obj), next_demo)
                     next_demo += 1
                     new_uid = dicom_data["study_iuid"]
+<<<<<<< HEAD
                     blob = json.dumps(dicom_data, ensure_ascii=False)
+=======
+                    blob = json.dumps({"dicomData": dicom_data}, ensure_ascii=False)
+>>>>>>> bcb5126 (n8n flow integration)
 
                     try:
                         await session.execute(

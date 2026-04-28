@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import enum
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ---------- Study_Groundtruth ingestion ----------
@@ -71,7 +72,6 @@ class ActivationDataItem(BaseModel):
     history: str = ""
     rules: list[RulesEntry] | list[dict[str, Any]] = Field(default_factory=list)
     dicomData: DicomData
-    for_candidate: bool = True
 
 
 # ---------- Grading ----------
@@ -162,3 +162,51 @@ class CheckpointPayload(BaseModel):
     summary: str
     per_case: list[CheckpointPerCase]
     evaluated_at: datetime
+
+
+# ---------- Incubation webhook (event-driven activation) ----------
+
+
+ALLOWED_MODALITIES = ("CT", "MRI", "XRAY", "NM")
+
+
+class WebhookEvent(str, enum.Enum):
+    start_reporting = "start-reporting"
+    case_submitted = "case-submitted"
+
+
+class IncubationWebhookRequest(BaseModel):
+    event: WebhookEvent
+    rad_id: int = Field(ge=1, description="Numeric radiologist id from upstream")
+    modalities: list[str] = Field(min_length=1)
+
+    @field_validator("modalities")
+    @classmethod
+    def _normalize_modalities(cls, v: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for raw in v:
+            if not isinstance(raw, str):
+                raise ValueError("modalities must be strings")
+            token = raw.strip().upper()
+            if not token:
+                continue
+            if token not in ALLOWED_MODALITIES:
+                raise ValueError(
+                    f"modality {raw!r} not allowed; expected one of {ALLOWED_MODALITIES}"
+                )
+            if token not in cleaned:
+                cleaned.append(token)
+        if not cleaned:
+            raise ValueError("modalities must not be empty after normalization")
+        cleaned.sort()
+        return cleaned
+
+
+class IncubationWebhookResponse(BaseModel):
+    rad_id: str
+    event: WebhookEvent
+    rad_status: str
+    cases_completed: int
+    cases_assigned_now: int
+    items: list[ActivationDataItem]
+    message: str | None = None

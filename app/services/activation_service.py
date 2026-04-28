@@ -8,7 +8,7 @@
      them in activation-data format.
 
 Response format matches the QA spec:
-    [ { history, rules, dicomData, for_candidate: true }, ... ]
+    [ { history, rules, dicomData }, ... ]
 
 Complex-case-per-hour quota is deferred; we still persist is_complex on the
 assignment so the future logic can read it.
@@ -167,15 +167,16 @@ async def _get_or_create_rad(session: AsyncSession, rad_id: str) -> RadState:
 def _to_activation_item(row: StudyGroundtruth) -> ActivationDataItem:
     rules = _safe_json_list(row.rules)
     dicom = _safe_json_dict(row.dicom_metadata)
-    # Ensure study_iuid is set on the dicomData block, even if the stored
-    # metadata forgot to include it.
+    # case_anonymization.py stores the metadata wrapped as {"dicomData": {...}}.
+    # Unwrap so the flat fields land at the level DicomData expects.
+    if isinstance(dicom.get("dicomData"), dict):
+        dicom = dicom["dicomData"]
     dicom.setdefault("study_iuid", row.study_iuid)
 
     return ActivationDataItem(
         history=row.history or "",
         rules=rules,
         dicomData=DicomData.model_validate(dicom),
-        for_candidate=True,
     )
 
 

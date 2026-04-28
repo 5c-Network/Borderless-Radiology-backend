@@ -79,6 +79,13 @@ class StudyGroundtruth(Base):
     dicom_metadata: Mapped[str | None] = mapped_column(Text)
     rules: Mapped[str | None] = mapped_column(Text)
 
+    # CSV-source columns (migration 20260428_0002).
+    old_study_iuid: Mapped[str | None] = mapped_column(String(255))
+    category: Mapped[str | None] = mapped_column(String(20))
+    observation: Mapped[str | None] = mapped_column(Text)
+    impression: Mapped[str | None] = mapped_column(Text)
+    age: Mapped[str | None] = mapped_column(String(16))
+
     # Our additions
     is_complex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     main_pathologies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
@@ -110,6 +117,9 @@ class RadState(Base):
         default=RadStatus.in_progress,
     )
     cases_completed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # Canonical sorted CSV of allowed modalities, e.g. "CT", "CT,MRI", "NM,XRAY".
+    # Set on the first start-reporting webhook; never overwritten afterward.
+    modality_preferred: Mapped[str | None] = mapped_column(String(32))
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

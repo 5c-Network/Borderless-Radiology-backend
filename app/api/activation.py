@@ -1,10 +1,14 @@
-"""Activation-data endpoint. n8n calls this to get the next case(s) for a rad.
+"""Activation-data endpoint.
 
-Matches the contract expected by the upstream n8n flow:
+DEPRECATED. Replaced by POST /api/v1/incubation/webhook (event-driven flow
+in app/api/incubation_webhook.py). Kept available during the n8n cutover;
+remove once the upstream workflow no longer references it.
+
+Original contract:
     GET /api/v1/activation-data/?rad_id=<id>&study_iuids=<uid1,uid2>
     Authorization: <api_auth_key>
 
-Response: JSON array of {history, rules, dicomData, for_candidate}.
+Response: JSON array of {history, rules, dicomData}.
 """
 
 from __future__ import annotations

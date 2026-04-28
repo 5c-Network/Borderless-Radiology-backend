@@ -12,3 +12,6 @@ dist/
 build/
 *.egg-info/
 .DS_Store
+KT.md
+LLM_LOGIC.md
+ngrok.zip
