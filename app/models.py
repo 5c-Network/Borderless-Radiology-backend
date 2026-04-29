@@ -86,6 +86,12 @@ class StudyGroundtruth(Base):
     impression: Mapped[str | None] = mapped_column(Text)
     age: Mapped[str | None] = mapped_column(String(16))
 
+    # Endpoint partition (migration 20260429_0004). 'test' rows are served
+    # only by /activation-data/test (DICOMs already on the destination
+    # server, no yotta hop). NULL/other values flow through the default
+    # /activation-data/ endpoint.
+    case_type: Mapped[str | None] = mapped_column(String(20))
+
     # Our additions
     is_complex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     main_pathologies: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)

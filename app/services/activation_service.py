@@ -47,11 +47,16 @@ async def get_activation_data(
     study_iuids: list[str] | None,
     event: str | None = None,
     modalities: list[str] | None = None,
+    case_type_filter: str | None = None,
 ) -> ActivationResult:
     if study_iuids:
         return await _mode_uid_lookup(session, rad_id, study_iuids)
     return await _mode_random_pick(
-        session, rad_id, event=event, modalities=modalities
+        session,
+        rad_id,
+        event=event,
+        modalities=modalities,
+        case_type_filter=case_type_filter,
     )
 
 
@@ -85,6 +90,7 @@ async def _mode_random_pick(
     *,
     event: str | None = None,
     modalities: list[str] | None = None,
+    case_type_filter: str | None = None,
 ) -> ActivationResult:
     settings = get_settings()
 
@@ -133,6 +139,13 @@ async def _mode_random_pick(
         tokens = [t for t in rad.modality_preferred.split(",") if t]
         if tokens:
             stmt = stmt.where(StudyGroundtruth.modality.in_(tokens))
+    if case_type_filter == "test":
+        stmt = stmt.where(StudyGroundtruth.case_type == "test")
+    else:
+        stmt = stmt.where(
+            (StudyGroundtruth.case_type.is_(None))
+            | (StudyGroundtruth.case_type != "test")
+        )
     unused = list((await session.execute(stmt)).scalars().all())
     if not unused:
         return ActivationResult(

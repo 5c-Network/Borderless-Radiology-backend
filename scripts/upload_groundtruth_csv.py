@@ -58,7 +58,8 @@ UPSERT_SQL = text(
         category,
         observation,
         impression,
-        age
+        age,
+        case_type
     ) VALUES (
         :study_id,
         :study_iuid,
@@ -72,7 +73,8 @@ UPSERT_SQL = text(
         :category,
         :observation,
         :impression,
-        :age
+        :age,
+        :case_type
     )
     ON CONFLICT (study_id) DO UPDATE SET
         old_study_iuid        = EXCLUDED.old_study_iuid,
@@ -87,11 +89,15 @@ UPSERT_SQL = text(
         impression            = EXCLUDED.impression,
         age                   = EXCLUDED.age,
         updated_at            = (now() AT TIME ZONE 'Asia/Kolkata')
+    -- case_type is intentionally NOT in the UPDATE list. It is set on
+    -- INSERT only, so a re-run of this script can never reclassify an
+    -- existing row (e.g. flip a production row to 'test'). Test rows
+    -- are owned by scripts/upload_test_cases_csv.py.
     """
 )
 
 
-# CSV header → DB column name.
+# CSV header → DB column name. Required columns: every CSV must carry these.
 CSV_HEADER_MAP = {
     "study_id": "study_id",
     "old_study_iuid": "old_study_iuid",
@@ -105,6 +111,13 @@ CSV_HEADER_MAP = {
     "modstudy": "modstudy",
     "rules": "rules",
     "dicom_metadata": "dicom_metadata",
+}
+
+# Optional CSV columns. Missing column → DB column stays NULL on insert
+# and (because EXCLUDED is also NULL) NULL on upsert. Present-but-empty
+# cells behave identically.
+CSV_OPTIONAL_HEADER_MAP = {
+    "case_type": "case_type",
 }
 
 
@@ -122,6 +135,8 @@ def parse_row(raw: dict[str, str], lineno: int) -> dict[str, object] | None:
     """Build a parameter dict for the upsert, or None if the row is unusable."""
     row: dict[str, object | None] = {}
     for csv_key, db_key in CSV_HEADER_MAP.items():
+        row[db_key] = _clean(raw.get(csv_key))
+    for csv_key, db_key in CSV_OPTIONAL_HEADER_MAP.items():
         row[db_key] = _clean(raw.get(csv_key))
 
     sid = row.get("study_id")

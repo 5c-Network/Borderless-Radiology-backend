@@ -275,6 +275,12 @@ async def _pick_unused(
     stmt = select(StudyGroundtruth).where(StudyGroundtruth.modality.in_(tokens))
     if seen:
         stmt = stmt.where(StudyGroundtruth.study_iuid.notin_(seen))
+    # Webhook is the prod path. Test-tagged rows are reachable only via
+    # GET /api/v1/activation-data/test (DICOMs pre-loaded on the server).
+    stmt = stmt.where(
+        (StudyGroundtruth.case_type.is_(None))
+        | (StudyGroundtruth.case_type != "test")
+    )
     pool = list((await session.execute(stmt)).scalars().all())
     if not pool:
         return []

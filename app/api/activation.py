@@ -1,4 +1,4 @@
-"""Activation-data endpoint.
+"""Activation-data endpoints.
 
     GET /api/v1/activation-data/
         ?rad_id=<id>
@@ -8,7 +8,13 @@
                                             on first call; restricts the pick)
     Authorization: <api_auth_key>
 
-Response: JSON array of {history, rules, dicomData}.
+    GET /api/v1/activation-data/test
+        Same query params. Random-pick mode returns ONLY rows whose
+        Study_Groundtruth.case_type == 'test' (DICOMs already pre-loaded
+        on the destination server, no yotta hop). The default endpoint
+        excludes those rows. UID-lookup mode is unfiltered on both routes.
+
+Response: JSON array of {history, rules, dicomData, for_candidate}.
 """
 
 from __future__ import annotations
@@ -22,6 +28,15 @@ from app.security import require_api_key
 from app.services.activation_service import get_activation_data
 
 router = APIRouter(prefix="/api/v1", tags=["activation"], dependencies=[Depends(require_api_key)])
+
+
+def _parse_csv(raw: str | None, *, upper: bool = False) -> list[str] | None:
+    if not raw:
+        return None
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    if not parts:
+        return None
+    return [p.upper() for p in parts] if upper else parts
 
 
 @router.get(
@@ -44,24 +59,36 @@ async def activation_data(
     ),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivationDataItem]:
-    uid_list: list[str] | None = None
-    if study_iuids:
-        uid_list = [u.strip() for u in study_iuids.split(",") if u.strip()]
-        if not uid_list:
-            uid_list = None
-
-    modality_list: list[str] | None = None
-    if modalities:
-        modality_list = [m.strip().upper() for m in modalities.split(",") if m.strip()]
-        if not modality_list:
-            modality_list = None
-
     result = await get_activation_data(
         session,
         rad_id=rad_id,
-        study_iuids=uid_list,
+        study_iuids=_parse_csv(study_iuids),
         event=event,
-        modalities=modality_list,
+        modalities=_parse_csv(modalities, upper=True),
+        case_type_filter=None,
+    )
+    await session.commit()
+    return result.items
+
+
+@router.get(
+    "/activation-data/test",
+    response_model=list[ActivationDataItem],
+)
+async def activation_data_test(
+    rad_id: str = Query(..., description="Radiologist identifier"),
+    study_iuids: str | None = Query(default=None),
+    event: str | None = Query(default=None),
+    modalities: str | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+) -> list[ActivationDataItem]:
+    result = await get_activation_data(
+        session,
+        rad_id=rad_id,
+        study_iuids=_parse_csv(study_iuids),
+        event=event,
+        modalities=_parse_csv(modalities, upper=True),
+        case_type_filter="test",
     )
     await session.commit()
     return result.items

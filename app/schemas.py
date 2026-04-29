@@ -72,6 +72,7 @@ class ActivationDataItem(BaseModel):
     history: str = ""
     rules: list[RulesEntry] | list[dict[str, Any]] = Field(default_factory=list)
     dicomData: DicomData
+    for_candidate: bool = True
 
 
 # ---------- Grading ----------
