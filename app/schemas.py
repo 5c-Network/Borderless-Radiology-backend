@@ -67,6 +67,26 @@ class DicomData(BaseModel):
     accession_number: str | None = None
     study_time: str | None = None
 
+    @field_validator("mods_in_study", mode="before")
+    @classmethod
+    def _coerce_mods_in_study(cls, v: object) -> str | None:
+        """Accept str ("CT" / "CT,MRI") or list (["CT","SR"]) from upstream
+        DICOM metadata. Output: comma-joined uppercase string of ONLY
+        allowed viewing modalities (CT/MRI/XRAY/NM). Anything else —
+        including 'SR' (Structured Report, not a viewing modality) — is
+        dropped. Returns None if nothing survives the filter.
+        """
+        if v is None:
+            return None
+        if isinstance(v, str):
+            tokens = [t.strip().upper() for t in v.split(",") if t.strip()]
+        elif isinstance(v, list):
+            tokens = [str(t).strip().upper() for t in v if str(t).strip()]
+        else:
+            return v  # let pydantic surface the wrong-type error
+        kept = [t for t in tokens if t in ALLOWED_MODALITIES]
+        return ",".join(kept) if kept else None
+
 
 class ActivationDataItem(BaseModel):
     history: str = ""
