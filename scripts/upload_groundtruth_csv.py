@@ -9,14 +9,13 @@ Order of execution on the VM:
     4. python scripts/classify_groundtruth_pathologies.py
 
 Notes:
-  - `study_iuid` is filled with the value of `old_study_iuid` as a placeholder
-    so the existing NOT NULL UNIQUE constraint is satisfied. Your extraction
-    script overwrites `study_iuid` with the real yotta-pushed IUID later.
-    On re-run of this script the placeholder is set ONLY for newly inserted
-    rows; existing rows keep whatever study_iuid they have (i.e. the value
-    your extraction script wrote).
+  - `study_iuid` is taken directly from the CSV's `study_iuid` column.
+    `old_study_iuid` is no longer populated by this script (column is
+    nullable and may be dropped in a future migration). On re-run the
+    upsert does NOT clobber an existing row's `study_iuid`.
   - Empty cells and `#N/A` are stored as NULL.
-  - `rules` and `dicom_metadata` are stored verbatim as text.
+  - `rules` is stored verbatim as text. `dicom_metadata` is left NULL by
+    this script and populated later by scripts/case_anonymization.py.
 
 Usage:
     python scripts/upload_groundtruth_csv.py path/to/borderless_db.csv
@@ -39,21 +38,18 @@ from app.db import engine
 logger = logging.getLogger("upload_groundtruth_csv")
 
 
-# IMPORTANT: study_iuid is in the INSERT column list (placeholder = old_study_iuid)
-# but is intentionally NOT in the ON CONFLICT UPDATE list. This way an
-# existing row's study_iuid (set by the extraction script) is never
-# clobbered by a re-run of this upload.
+# study_iuid is in the INSERT column list but intentionally NOT in the
+# ON CONFLICT UPDATE list, so a re-run cannot clobber an existing row's
+# study_iuid. old_study_iuid is no longer populated.
 UPSERT_SQL = text(
     """
     INSERT INTO rad_incubation."Study_Groundtruth" (
         study_id,
         study_iuid,
-        old_study_iuid,
         modstudy,
         groundtruth_pathology,
         modality,
         history,
-        dicom_metadata,
         rules,
         category,
         observation,
@@ -63,12 +59,10 @@ UPSERT_SQL = text(
     ) VALUES (
         :study_id,
         :study_iuid,
-        :old_study_iuid,
         :modstudy,
         :groundtruth_pathology,
         :modality,
         :history,
-        :dicom_metadata,
         :rules,
         :category,
         :observation,
@@ -77,12 +71,10 @@ UPSERT_SQL = text(
         :case_type
     )
     ON CONFLICT (study_id) DO UPDATE SET
-        old_study_iuid        = EXCLUDED.old_study_iuid,
         modstudy              = EXCLUDED.modstudy,
         groundtruth_pathology = EXCLUDED.groundtruth_pathology,
         modality              = EXCLUDED.modality,
         history               = EXCLUDED.history,
-        dicom_metadata        = EXCLUDED.dicom_metadata,
         rules                 = EXCLUDED.rules,
         category              = EXCLUDED.category,
         observation           = EXCLUDED.observation,
@@ -100,17 +92,16 @@ UPSERT_SQL = text(
 # CSV header → DB column name. Required columns: every CSV must carry these.
 CSV_HEADER_MAP = {
     "study_id": "study_id",
-    "old_study_iuid": "old_study_iuid",
-    "Modality": "modality",
+    "study_iuid": "study_iuid",
+    "modalities": "modality",
     "pathology": "groundtruth_pathology",
-    "Category": "category",
-    "Observation": "observation",
-    "Impression": "impression",
+    "category": "category",
+    "observation": "observation",
+    "impression": "impression",
     "history": "history",
     "age": "age",
     "modstudy": "modstudy",
     "rules": "rules",
-    "dicom_metadata": "dicom_metadata",
 }
 
 # Optional CSV columns. Missing column → DB column stays NULL on insert
@@ -164,20 +155,13 @@ def parse_row(raw: dict[str, str], lineno: int) -> dict[str, object] | None:
         )
         return None
 
-    old_iuid = row.get("old_study_iuid")
-    if not old_iuid:
+    if not row.get("study_iuid"):
         logger.warning(
-            "line %d: missing old_study_iuid for study_id=%s, skipping",
+            "line %d: missing study_iuid for study_id=%s, skipping",
             lineno,
             row["study_id"],
         )
         return None
-
-    # study_iuid placeholder. The separate extraction script overwrites this
-    # with the real yotta-pushed IUID; the upsert above does NOT clobber
-    # study_iuid on conflict, so the extraction's value persists across
-    # re-runs of this script.
-    row["study_iuid"] = old_iuid
     return row  # type: ignore[return-value]
 
 

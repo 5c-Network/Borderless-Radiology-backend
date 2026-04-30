@@ -3,12 +3,14 @@
 For every row in rad_incubation."Study_Groundtruth" whose dicom_metadata
 column is NULL, this script:
 
-  1) calls https://api.5cnetwork.com/dicom/v2/study?study_iuid=<old_uid>
-     using the Authorization header value from 5C_API_AUTH_KEY,
+  1) calls https://api.5cnetwork.com/dicom/v2/study?study_iuid=<study_iuid>
+     using the row's study_iuid column and the Authorization header
+     value from 5C_API_AUTH_KEY,
   2) reshapes the response into the standard "dicomData" JSON schema,
-  3) overwrites pat_id, pat_name_fk, study_iuid with anonymised values,
-  4) writes the JSON into the row's dicom_metadata column AND copies the
-     new study_iuid into the row's study_iuid column.
+  3) overwrites pat_id, pat_name_fk with anonymised values
+     (study_iuid is preserved as-is),
+  4) writes the JSON into the row's dicom_metadata column.
+     The row's study_iuid column is left untouched.
 
 Idempotent: rows that already have dicom_metadata are skipped.
 Safe:       aborts cleanly if any picked study_id already has a row in
@@ -19,15 +21,12 @@ Required env (.env):
     5C_API_AUTH_KEY       - Sent verbatim as the Authorization header.
 
 Usage:
-<<<<<<< HEAD
-    python Borderless-Radiology-backend/scripts/case_anonymization.py
-=======
-    python scripts/case_anonymization.py
->>>>>>> bcb5126 (n8n flow integration)
+    python scripts/case_anonymization.py [--dry-run]
 """
 
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
 import logging
@@ -96,17 +95,11 @@ def starting_demo_index(existing_blobs: list[str]) -> int:
         if not blob:
             continue
         try:
-<<<<<<< HEAD
-            name = json.loads(blob).get("pat_name_fk", "") or ""
-        except (TypeError, ValueError):
-            continue
-=======
             obj = json.loads(blob)
         except (TypeError, ValueError):
             continue
         inner = obj.get("dicomData", obj) if isinstance(obj, dict) else {}
         name = inner.get("pat_name_fk", "") or ""
->>>>>>> bcb5126 (n8n flow integration)
         m = _DEMO_RE.search(name)
         if m:
             highest = max(highest, int(m.group(1)))
@@ -120,7 +113,6 @@ def reshape(api_obj: dict[str, Any]) -> dict[str, Any]:
 def anonymise(dicom_data: dict[str, Any], demo_index: int) -> dict[str, Any]:
     dicom_data["pat_name_fk"] = f"DEMO PATIENT-{demo_index}"
     dicom_data["pat_id"] = new_pat_id()
-    dicom_data["study_iuid"] = new_study_iuid()
     return dicom_data
 
 
@@ -151,7 +143,7 @@ async def fetch_metadata(
     return body[0]
 
 
-async def main() -> int:
+async def main(dry_run: bool = False) -> int:
     if not DATABASE_URL:
         sys.exit("Missing DATABASE_URL in .env")
     if not SC_API_KEY:
@@ -159,11 +151,13 @@ async def main() -> int:
             "Missing 5C_API_AUTH_KEY in .env. "
             "Add: 5C_API_AUTH_KEY=NWNuZXR3b3JrOjVjbmV0d29yaw=="
         )
+    if dry_run:
+        log.info("DRY-RUN: API + reshape + anonymise will run; no DB writes")
 
     engine = create_async_engine(DATABASE_URL)
     Session = async_sessionmaker(engine, expire_on_commit=False)
 
-    summary: list[tuple[str, int, str, str, str]] = []
+    summary: list[tuple[str, int, str, str]] = []
     try:
         async with Session() as session:
             rows = (
@@ -214,44 +208,48 @@ async def main() -> int:
 
             async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as http:
                 for r in rows:
-                    old_uid = r.study_iuid
-                    api_obj = await fetch_metadata(http, old_uid)
+                    study_uid = r.study_iuid
+                    api_obj = await fetch_metadata(http, study_uid)
                     if api_obj is None:
                         summary.append(
-                            (r.modality or "?", r.study_id, old_uid, "", "skipped (api)")
+                            (r.modality or "?", r.study_id, study_uid, "skipped (api)")
                         )
                         continue
 
                     dicom_data = anonymise(reshape(api_obj), next_demo)
                     next_demo += 1
-                    new_uid = dicom_data["study_iuid"]
-<<<<<<< HEAD
-                    blob = json.dumps(dicom_data, ensure_ascii=False)
-=======
                     blob = json.dumps({"dicomData": dicom_data}, ensure_ascii=False)
->>>>>>> bcb5126 (n8n flow integration)
+
+                    if dry_run:
+                        summary.append(
+                            (r.modality or "?", r.study_id, study_uid, "dry-run")
+                        )
+                        log.info(
+                            "[dry-run] study_id=%s would update (%s, %s, blob=%d bytes)",
+                            r.study_id, dicom_data["pat_name_fk"], r.modality, len(blob),
+                        )
+                        continue
 
                     try:
                         await session.execute(
                             text(
                                 f'UPDATE {SCHEMA}."Study_Groundtruth" '
-                                f'SET study_iuid = :new_uid, '
-                                f'    dicom_metadata = :blob '
+                                f'SET dicom_metadata = :blob '
                                 f'WHERE study_id = :sid'
                             ),
-                            {"new_uid": new_uid, "blob": blob, "sid": r.study_id},
+                            {"blob": blob, "sid": r.study_id},
                         )
                         await session.commit()
                     except Exception as e:
                         await session.rollback()
                         summary.append(
-                            (r.modality or "?", r.study_id, old_uid, "", f"db error: {e}")
+                            (r.modality or "?", r.study_id, study_uid, f"db error: {e}")
                         )
                         log.exception("study_id=%s db update failed", r.study_id)
                         continue
 
                     summary.append(
-                        (r.modality or "?", r.study_id, old_uid, new_uid, "ok")
+                        (r.modality or "?", r.study_id, study_uid, "ok")
                     )
                     log.info(
                         "study_id=%s ok (%s, %s)",
@@ -261,15 +259,23 @@ async def main() -> int:
         await engine.dispose()
 
     print()
-    print(f"{'modality':<8} {'study_id':>10}  {'old_iuid':>13}  {'new_iuid':>13}  status")
-    for mod, sid, old, new, st in summary:
-        old_tail = "..." + (old or "")[-8:] if old else "—"
-        new_tail = "..." + (new or "")[-8:] if new else "—"
-        print(f"{mod:<8} {sid:>10}  {old_tail:>13}  {new_tail:>13}  {st}")
-    ok = sum(1 for s in summary if s[4] == "ok")
-    print(f"\n{ok}/{len(summary)} rows updated.")
+    print(f"{'modality':<8} {'study_id':>10}  {'study_iuid':>13}  status")
+    for mod, sid, uid, st in summary:
+        uid_tail = "..." + (uid or "")[-8:] if uid else "—"
+        print(f"{mod:<8} {sid:>10}  {uid_tail:>13}  {st}")
+    ok_status = "dry-run" if any(s[3] == "dry-run" for s in summary) else "ok"
+    ok = sum(1 for s in summary if s[3] == ok_status)
+    verb = "would update" if ok_status == "dry-run" else "updated"
+    print(f"\n{ok}/{len(summary)} rows {verb}.")
     return 0 if ok == len(summary) else 1
 
 
 if __name__ == "__main__":
-    sys.exit(asyncio.run(main()))
+    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="fetch + reshape + anonymise; do not write to DB",
+    )
+    args = parser.parse_args()
+    sys.exit(asyncio.run(main(dry_run=args.dry_run)))
