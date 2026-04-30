@@ -98,17 +98,17 @@ class ActivationDataItem(BaseModel):
 # ---------- Grading ----------
 
 
-class CandidateReport(BaseModel):
+class Report(BaseModel):
     observation: str = ""
     impression: str = ""
+    history: str = ""
+    modstudy: str = ""
+    study_iuid: str
 
 
 class GradeCaseRequest(BaseModel):
     rad_id: str
-    session_id: str | None = None
-    study_iuid: str
-    candidate_report: CandidateReport
-    submitted_at: datetime | None = None
+    report: Report
 
 
 class GradeCaseResponse(BaseModel):

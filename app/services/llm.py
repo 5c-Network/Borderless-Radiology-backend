@@ -66,6 +66,7 @@ class GeminiService:
         self,
         *,
         study_iuid: str,
+        modstudy: str,
         main_pathologies: list[str],
         incidental_findings: list[str],
         history: str | None,
@@ -75,6 +76,7 @@ class GeminiService:
     ) -> GradingLLMOutput:
         user = USER_TEMPLATE_GRADING.format(
             study_iuid=study_iuid,
+            modstudy=modstudy or "(none)",
             main_pathologies=(
                 "\n".join(f"- {p}" for p in main_pathologies)
                 if main_pathologies

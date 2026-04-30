@@ -47,3 +47,20 @@ def count_grades(grades: list[str]) -> dict[str, int]:
         if g in counts:
             counts[g] += 1
     return counts
+
+
+def count_modalities(modalities: list[str | None]) -> dict[str, int]:
+    """Tally modality strings. Sorted by count desc, alphabetical on ties."""
+    counts: dict[str, int] = {}
+    for m in modalities:
+        if not m:
+            continue
+        counts[m] = counts.get(m, 0) + 1
+    return dict(sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])))
+
+
+def format_modality_breakdown(counts: dict[str, int]) -> str:
+    """Render '{CT: 12, MRI: 6, XRAY: 2}' for notice bodies."""
+    if not counts:
+        return ""
+    return ", ".join(f"{m}: {n}" for m, n in counts.items())

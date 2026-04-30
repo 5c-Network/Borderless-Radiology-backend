@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI
 
 from app.api.activation import router as activation_router
@@ -29,10 +29,17 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     scheduler: AsyncIOScheduler | None = None
     if settings.seven_day_job_enabled:
-        scheduler = AsyncIOScheduler(timezone="UTC")
+        # Run daily at 00:00 IST. Day 1 of incubation = day after first
+        # start-reporting webhook; the sweep checks whether today_IST has
+        # passed Day 7 for any in_progress rad.
+        scheduler = AsyncIOScheduler(timezone=settings.seven_day_job_timezone)
         scheduler.add_job(
             run_seven_day_sweep,
-            trigger=IntervalTrigger(minutes=settings.seven_day_job_interval_minutes),
+            trigger=CronTrigger(
+                hour=settings.seven_day_job_cron_hour,
+                minute=settings.seven_day_job_cron_minute,
+                timezone=settings.seven_day_job_timezone,
+            ),
             id="seven_day_sweep",
             max_instances=1,
             coalesce=True,
@@ -40,7 +47,10 @@ async def lifespan(app: FastAPI):
         )
         scheduler.start()
         logger.info(
-            "7-day sweep scheduled every %s min", settings.seven_day_job_interval_minutes
+            "7-day sweep scheduled daily at %02d:%02d %s",
+            settings.seven_day_job_cron_hour,
+            settings.seven_day_job_cron_minute,
+            settings.seven_day_job_timezone,
         )
     try:
         yield

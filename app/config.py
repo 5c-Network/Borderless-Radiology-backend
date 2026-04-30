@@ -20,7 +20,13 @@ class Settings(BaseSettings):
     external_callback_key: str = Field(default="", alias="EXTERNAL_CALLBACK_KEY")
 
     seven_day_job_enabled: bool = Field(default=True, alias="SEVEN_DAY_JOB_ENABLED")
-    seven_day_job_interval_minutes: int = Field(default=60, alias="SEVEN_DAY_JOB_INTERVAL_MINUTES")
+    # Cron lands on Day 8 at 00:00 IST for any rad whose 7-day window has
+    # ended. IST chosen to match incubation_started_at semantics in workflow.
+    seven_day_job_cron_hour: int = Field(default=0, alias="SEVEN_DAY_JOB_CRON_HOUR")
+    seven_day_job_cron_minute: int = Field(default=0, alias="SEVEN_DAY_JOB_CRON_MINUTE")
+    seven_day_job_timezone: str = Field(
+        default="Asia/Kolkata", alias="SEVEN_DAY_JOB_TIMEZONE"
+    )
 
     incubation_days: int = 7
     total_pool_cases: int = 80

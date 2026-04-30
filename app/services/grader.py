@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import get_settings
 from app.db import SessionLocal
 from app.models import (
     CaseAssignment,
@@ -23,7 +22,7 @@ from app.models import (
     RadState,
     StudyGroundtruth,
 )
-from app.schemas import CandidateReport
+from app.schemas import Report
 from app.services.checkpoint import maybe_fire_case_count_checkpoint
 from app.services.grade_utils import score_from_grade
 from app.services.llm import LLMError, get_llm
@@ -35,11 +34,11 @@ async def enqueue_grading(
     session: AsyncSession,
     *,
     rad_id: str,
-    study_iuid: str,
-    candidate: CandidateReport,
-    submitted_at: datetime | None,
+    report: Report,
 ) -> GradingJob:
     """Insert a queued row. Idempotent on (rad_id, study_iuid)."""
+
+    study_iuid = report.study_iuid
 
     existing = await session.execute(
         select(GradingJob).where(
@@ -75,16 +74,17 @@ async def enqueue_grading(
         study_iuid=study_iuid,
         study_id=gt.study_id,
         case_number=assignment.case_number,
-        submitted_at=submitted_at or datetime.now(timezone.utc),
+        submitted_at=datetime.now(timezone.utc),
         status=GradingStatus.queued,
         candidate_snapshot={
-            "observation": candidate.observation,
-            "impression": candidate.impression,
+            "observation": report.observation,
+            "impression": report.impression,
+            "history": report.history,
+            "modstudy": report.modstudy,
         },
         ground_truth_snapshot={
             "main_pathologies": gt.main_pathologies,
             "incidental_findings": gt.incidental_findings,
-            "history": gt.history,
             "groundtruth_pathology": gt.groundtruth_pathology,
             "modality": gt.modality,
             "modstudy": gt.modstudy,
@@ -112,9 +112,10 @@ async def run_grading_job(grading_id: str) -> None:
             cand = job.candidate_snapshot or {}
             result = await llm.grade_case(
                 study_iuid=job.study_iuid,
+                modstudy=cand.get("modstudy") or gt.get("modstudy", ""),
                 main_pathologies=gt.get("main_pathologies", []),
                 incidental_findings=gt.get("incidental_findings", []),
-                history=gt.get("history"),
+                history=cand.get("history", ""),
                 groundtruth_pathology=gt.get("groundtruth_pathology", ""),
                 candidate_observation=cand.get("observation", ""),
                 candidate_impression=cand.get("impression", ""),
@@ -136,7 +137,6 @@ async def run_grading_job(grading_id: str) -> None:
             logger.exception("unexpected failure on grading job %s", grading_id)
             return
 
-        settings = get_settings()
         async with session.begin():
             job = await session.get(GradingJob, grading_id)
             if job is None:
@@ -148,7 +148,6 @@ async def run_grading_job(grading_id: str) -> None:
             job.related_to_primary_indication = result.related_to_primary_indication
             job.llm_raw_json = result.model_dump()
             job.llm_rationale = result.rationale
-            job.llm_model = settings.gemini_model
             job.status = GradingStatus.done
             job.graded_at = datetime.now(timezone.utc)
 

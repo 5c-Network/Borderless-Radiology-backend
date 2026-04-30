@@ -1,4 +1,17 @@
-"""Grading endpoints. n8n calls POST /grade_case per submitted report."""
+"""Grading endpoints. External callers POST /grade_case per submitted report.
+
+Payload shape:
+    {
+      "rad_id": "<email or id>",
+      "report": {
+        "observation": "...",
+        "impression": "...",
+        "history": "...",
+        "modstudy": "Xray Radiograph Chest",
+        "study_iuid": "..."
+      }
+    }
+"""
 
 from __future__ import annotations
 
@@ -30,9 +43,7 @@ async def grade_case(
         job = await enqueue_grading(
             session,
             rad_id=body.rad_id,
-            study_iuid=body.study_iuid,
-            candidate=body.candidate_report,
-            submitted_at=body.submitted_at,
+            report=body.report,
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

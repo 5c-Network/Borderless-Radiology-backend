@@ -129,6 +129,7 @@ OUTPUT JSON SCHEMA
 }"""
 
 USER_TEMPLATE_GRADING = """STUDY: {study_iuid}
+MODSTUDY: {modstudy}
 
 GROUND TRUTH
 Main/Complex Pathologies (MUST detect ALL):

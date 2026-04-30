@@ -48,6 +48,7 @@ class CallbackStatus(str, enum.Enum):
     pending = "pending"
     sent = "sent"
     failed = "failed"
+    skipped = "skipped"
 
 
 class StudyGroundtruth(Base):
@@ -203,7 +204,6 @@ class GradingJob(Base):
 
     llm_raw_json: Mapped[dict | None] = mapped_column(JSONB)
     llm_rationale: Mapped[str | None] = mapped_column(Text)
-    llm_model: Mapped[str | None] = mapped_column(String(64))
 
     ground_truth_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     candidate_snapshot: Mapped[dict | None] = mapped_column(JSONB)
