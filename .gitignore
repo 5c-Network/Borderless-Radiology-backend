@@ -16,3 +16,5 @@ KT.md
 LLM_LOGIC.md
 ngrok.zip
 *.csv
+scripts/_probe_rad.py
+scripts/_run_grade_test.py

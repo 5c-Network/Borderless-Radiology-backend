@@ -29,6 +29,10 @@ _IST = ZoneInfo("Asia/Kolkata")
 
 
 async def run_seven_day_sweep() -> int:
+    """One session for the lookup, then a fresh session per rad — same
+    pattern as run_grading_job. This isolates per-rad failures and avoids
+    transaction nesting on the shared session.
+    """
     today_ist = datetime.now(_IST).date()
 
     async with SessionLocal() as session:
@@ -43,24 +47,25 @@ async def run_seven_day_sweep() -> int:
 
         # Day 1 is the day after the first webhook, so Day 8 = start_date + 8.
         # We fire when today_IST is on or after Day 8.
-        eligible = [
-            rad
+        eligible_ids = [
+            rad.rad_id
             for rad in candidates
             if today_ist
             >= rad.incubation_started_at.astimezone(_IST).date()
             + timedelta(days=8)
         ]
 
-        fired = 0
-        for rad in eligible:
+    fired = 0
+    for rad_id in eligible_ids:
+        async with SessionLocal() as session:
             async with session.begin():
                 event = await fire_checkpoint(
-                    session, rad.rad_id, CheckpointKind.terminal_7_days
+                    session, rad_id, CheckpointKind.terminal_7_days
                 )
-            if event is not None:
-                fired += 1
-                logger.info(
-                    "fired 7-day terminal for rad=%s cases=%s grade=%s",
-                    rad.rad_id, event.cases_evaluated, event.overall_grade,
-                )
-        return fired
+        if event is not None:
+            fired += 1
+            logger.info(
+                "fired 7-day terminal for rad=%s cases=%s grade=%s",
+                rad_id, event.cases_evaluated, event.overall_grade,
+            )
+    return fired
