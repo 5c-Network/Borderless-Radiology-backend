@@ -49,18 +49,26 @@ _IST = ZoneInfo("Asia/Kolkata")
 async def maybe_fire_case_count_checkpoint(
     session: AsyncSession, rad_id: str
 ) -> CheckpointEvent | None:
-    """Called after every successful grade. Fires a checkpoint at case 20 or 80.
+    """Called after every successful grade. Fires gate_20 once the rad has
+    >= 20 done cases, and terminal_80 once she has >= 80.
 
-    Returns the new CheckpointEvent if one fired, else None.
+    Why >= and not == : concurrent grading workers can commit in a burst,
+    so the count can jump from 19 to 21 without any single check seeing 20.
+    The unique constraint on (rad_id, kind) plus the existence guard inside
+    fire_checkpoint make >= idempotent — only the first crossing actually
+    creates a row; later calls return None.
+
+    Returns the new CheckpointEvent if one fired this call, else None.
     """
     settings = get_settings()
     done_count = await _count_done(session, rad_id)
 
-    if done_count == settings.first_checkpoint:
-        return await fire_checkpoint(session, rad_id, CheckpointKind.gate_20)
-    if done_count == settings.final_checkpoint:
-        return await fire_checkpoint(session, rad_id, CheckpointKind.terminal_80)
-    return None
+    event: CheckpointEvent | None = None
+    if done_count >= settings.first_checkpoint:
+        event = await fire_checkpoint(session, rad_id, CheckpointKind.gate_20)
+    if done_count >= settings.final_checkpoint:
+        event = await fire_checkpoint(session, rad_id, CheckpointKind.terminal_80) or event
+    return event
 
 
 async def fire_checkpoint(

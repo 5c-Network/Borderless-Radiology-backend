@@ -11,7 +11,7 @@ One endpoint, two body shapes:
                                       "qualified_at": "YYYY-MM-DD",
                                       "notice": {...}}
 
-Both PATCH /user/radiologist/borderlesst/{rad_id}. The platform returns the
+Both PATCH /user/radiologist/borderless/{rad_id}. The platform returns the
 rad's full state (phase, notice, commitment, qualified_at) on every call.
 
 Both return (ok: bool, err: str | None). No exceptions to caller — failures
@@ -41,7 +41,7 @@ async def send_notice(
     """
     payload = body if body is not None else {"notice": None}
     return await _patch(
-        path=f"/user/radiologist/borderlesst/{rad_id}",
+        path=f"/user/radiologist/borderless/{rad_id}",
         payload=payload,
     )
 
@@ -63,7 +63,7 @@ async def send_borderless_qualified(
         "notice": notice,
     }
     return await _patch(
-        path=f"/user/radiologist/borderlesst/{rad_id}",
+        path=f"/user/radiologist/borderless/{rad_id}",
         payload=payload,
     )
 
