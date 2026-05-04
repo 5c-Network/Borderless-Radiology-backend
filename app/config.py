@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     total_pool_cases: int = 80
     first_checkpoint: int = 20
     final_checkpoint: int = 80
+    # How many cases to return on every activation-data / webhook call.
+    cases_per_call: int = Field(default=2, alias="CASES_PER_CALL")
 
 
 @lru_cache

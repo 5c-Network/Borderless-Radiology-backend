@@ -36,7 +36,13 @@ async def enqueue_grading(
     rad_id: str,
     report: Report,
 ) -> GradingJob:
-    """Insert a queued row. Idempotent on (rad_id, study_iuid)."""
+    """Persist the inbound payload, then validate.
+
+    The row is inserted (with the full raw payload) before any lookup runs, so
+    every inbound /grade_case call leaves an audit record. If assignment or
+    groundtruth lookup misses, the row is finalized with status=error and the
+    LLM background worker short-circuits. Idempotent on (rad_id, study_iuid).
+    """
 
     study_iuid = report.study_iuid
 
@@ -49,7 +55,22 @@ async def enqueue_grading(
     if job is not None:
         return job
 
-    # Verify the rad was actually assigned this study.
+    job = GradingJob(
+        rad_id=rad_id,
+        study_iuid=study_iuid,
+        submitted_at=datetime.now(timezone.utc),
+        status=GradingStatus.queued,
+        raw_payload={"rad_id": rad_id, "report": report.model_dump(mode="json")},
+        candidate_snapshot={
+            "observation": report.observation,
+            "impression": report.impression,
+            "history": report.history,
+            "modstudy": report.modstudy,
+        },
+    )
+    session.add(job)
+    await session.flush()
+
     assignment = (
         await session.execute(
             select(CaseAssignment).where(
@@ -59,7 +80,10 @@ async def enqueue_grading(
         )
     ).scalar_one_or_none()
     if assignment is None:
-        raise ValueError(f"rad {rad_id} was not assigned study {study_iuid}")
+        job.status = GradingStatus.error
+        job.error_message = f"validation: rad {rad_id} was not assigned study {study_iuid}"[:2000]
+        return job
+    job.case_number = assignment.case_number
 
     gt = (
         await session.execute(
@@ -67,31 +91,18 @@ async def enqueue_grading(
         )
     ).scalar_one_or_none()
     if gt is None:
-        raise ValueError(f"study_iuid {study_iuid} not in Study_Groundtruth")
+        job.status = GradingStatus.error
+        job.error_message = f"validation: study_iuid {study_iuid} not in Study_Groundtruth"[:2000]
+        return job
 
-    job = GradingJob(
-        rad_id=rad_id,
-        study_iuid=study_iuid,
-        study_id=gt.study_id,
-        case_number=assignment.case_number,
-        submitted_at=datetime.now(timezone.utc),
-        status=GradingStatus.queued,
-        candidate_snapshot={
-            "observation": report.observation,
-            "impression": report.impression,
-            "history": report.history,
-            "modstudy": report.modstudy,
-        },
-        ground_truth_snapshot={
-            "main_pathologies": gt.main_pathologies,
-            "incidental_findings": gt.incidental_findings,
-            "groundtruth_pathology": gt.groundtruth_pathology,
-            "modality": gt.modality,
-            "modstudy": gt.modstudy,
-        },
-    )
-    session.add(job)
-    await session.flush()
+    job.study_id = gt.study_id
+    job.ground_truth_snapshot = {
+        "main_pathologies": gt.main_pathologies,
+        "incidental_findings": gt.incidental_findings,
+        "groundtruth_pathology": gt.groundtruth_pathology,
+        "modality": gt.modality,
+        "modstudy": gt.modstudy,
+    }
     return job
 
 
@@ -102,6 +113,8 @@ async def run_grading_job(grading_id: str) -> None:
             job = await session.get(GradingJob, grading_id)
             if job is None:
                 logger.error("grading job %s not found", grading_id)
+                return
+            if job.status == GradingStatus.error:
                 return
             job.status = GradingStatus.running
 

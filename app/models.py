@@ -124,8 +124,9 @@ class RadState(Base):
         default=RadStatus.in_progress,
     )
     cases_completed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Canonical sorted CSV of allowed modalities, e.g. "CT", "CT,MRI", "NM,XRAY".
-    # Set on the first start-reporting webhook; never overwritten afterward.
+    # Canonical CSV of allowed modalities, e.g. "CT", "CT,MRI", "NM,XRAY".
+    # Set on start-reporting and updated on case-submitted whenever the
+    # body's modality differs.
     modality_preferred: Mapped[str | None] = mapped_column(String(32))
 
     created_at: Mapped[datetime] = mapped_column(
@@ -186,8 +187,8 @@ class GradingJob(Base):
     )
     rad_id: Mapped[str] = mapped_column(String(64), nullable=False)
     study_iuid: Mapped[str] = mapped_column(String(255), nullable=False)
-    study_id: Mapped[int] = mapped_column(Integer, nullable=False)
-    case_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    study_id: Mapped[int | None] = mapped_column(Integer)
+    case_number: Mapped[int | None] = mapped_column(Integer)
 
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[GradingStatus] = mapped_column(
@@ -207,6 +208,7 @@ class GradingJob(Base):
 
     ground_truth_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     candidate_snapshot: Mapped[dict | None] = mapped_column(JSONB)
+    raw_payload: Mapped[dict | None] = mapped_column(JSONB)
 
     error_message: Mapped[str | None] = mapped_column(Text)
 

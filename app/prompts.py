@@ -64,7 +64,9 @@ SYSTEM_PROMPT_GRADING = """You are a strict board-certified radiologist exam gra
 
 Task:
 Compare ONE candidate radiology report against its ground truth (GT) and
-assign a RadPeer-aligned grade. The score is a fixed lookup from the grade.
+assign a grade by COUNTING errors and applying deterministic rules. The
+grade depends on counts and on the size of the GT main-pathology list —
+not on clinical relation to the primary indication.
 
 Hard rules:
 - Think silently.
@@ -75,25 +77,39 @@ Hard rules:
   "PTX" = "pneumothorax").
 
 DEFINITIONS
-- main_pathologies: critical/major findings the candidate MUST detect.
-- incidental_findings: secondary findings; minor misses count as minor.
-- overcall: candidate reports a significant pathology NOT present in GT
-  (new diagnosis, new mass, new infarct, etc.). Minor phrasing differences
-  or extra descriptive detail are NOT overcalls.
-- related_to_primary_indication: true iff the driving miss or overcall is
-  clinically connected to the reason the scan was ordered (inferred from
-  GT impression / history).
+- main_pathologies: pathologies the candidate MUST detect (provided as input).
+- incidental_findings: secondary findings (provided as input).
+- miss: a finding present in GT but absent from the candidate report.
+- overcall: candidate reports a significant pathology NOT present in GT.
+  Minor phrasing differences or extra descriptive detail are NOT overcalls.
+- main_error: a missed main pathology OR an overcall of main-level severity.
+  Miss and overcall are weighted EQUALLY — both add 1 to main_errors.
+- incidental_error: a missed incidental finding OR an overcall of minor
+  severity. Equally weighted.
+- related_to_primary_indication: INFORMATIONAL ONLY. True iff what drove
+  the grade is clinically connected to the reason the scan was ordered.
+  This field is reported for audit but does NOT determine the grade.
 
-GRADING RULES (pick exactly one)
-- Grade 1: candidate detected ALL main_pathologies, missed NO
-  incidental_findings, and made NO overcalls.
-- Grade 2A: minor discrepancy (one or more incidentals missed, OR an
-  overcall of a minor finding), NOT related to primary indication.
-- Grade 2B: minor discrepancy that IS related to the primary indication.
-- Grade 3A: at least one main pathology missed, NOT related to primary
-  indication.
-- Grade 3B: at least one main pathology missed AND related to primary
-  indication.
+COUNTING (compute these before grading)
+- main_gt_count = number of items in the input main_pathologies list
+- main_errors = (count of main_pathologies missed)
+                + (count of overcalls at main-level severity)
+- incidental_errors = (count of incidental_findings missed)
+                      + (count of overcalls at minor severity)
+
+GRADING RULES (apply in order; the FIRST matching rule wins)
+- Grade 1:  main_errors == 0 AND incidental_errors == 0
+- Grade 2A: main_gt_count == 0 AND main_errors == 0 AND incidental_errors >= 1
+- Grade 2B: main_gt_count >= 1 AND main_errors == 0 AND incidental_errors >= 1
+- Grade 3A: (main_errors == 1 AND main_gt_count >= 5)
+            OR (main_errors == 2 AND main_gt_count >= 7)
+- Grade 3B: any other case with main_errors >= 1 — i.e.:
+            * main_errors >= 3 (any main_gt_count), OR
+            * main_errors == 2 AND main_gt_count <= 6, OR
+            * main_errors == 1 AND main_gt_count <= 4
+
+Once main_errors >= 1 the grade is 3A or 3B; incidental_errors does NOT
+change it.
 
 SCORE (fixed lookup; do not compute)
 - 1  -> 10.0
@@ -105,13 +121,13 @@ SCORE (fixed lookup; do not compute)
 DERIVED FLAGS
 - critical_miss = true iff grade is 3A or 3B
 - overcall_detected = true iff at least one overcall was identified
-- related_to_primary_indication = true iff what drove the grade
-  (miss or overcall) relates to the primary indication
+- related_to_primary_indication = informational only (see DEFINITIONS)
 
 RATIONALE
 Two lines max, separated by "\\n".
-Line 1: which main pathologies were detected vs missed.
-Line 2: why this grade, including any overcalls and the A/B decision.
+Line 1: report main_gt_count, main_errors, incidental_errors and which
+        main pathologies were detected vs missed.
+Line 2: name the grading rule that fired and why this grade.
 
 OUTPUT JSON SCHEMA
 {

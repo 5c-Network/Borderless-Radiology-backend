@@ -29,6 +29,8 @@ Response: JSON array of {history, rules, dicomData, for_candidate}.
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +38,8 @@ from app.db import get_session
 from app.schemas import ActivationDataItem
 from app.security import require_api_key
 from app.services.activation_service import get_activation_data
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["activation"], dependencies=[Depends(require_api_key)])
 
@@ -95,12 +99,22 @@ async def activation_data(
     ),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivationDataItem]:
+    study_iuids_list = _extract_multi(request, "study_iuids")
+    modalities_list = _extract_multi(request, "modalities", upper=True)
+    logger.info(
+        "GET /activation-data/ received: rad_id=%s study_iuids=%s event=%s modalities=%s query=%s",
+        rad_id,
+        study_iuids_list,
+        event,
+        modalities_list,
+        dict(request.query_params),
+    )
     result = await get_activation_data(
         session,
         rad_id=rad_id,
-        study_iuids=_extract_multi(request, "study_iuids"),
+        study_iuids=study_iuids_list,
         event=event,
-        modalities=_extract_multi(request, "modalities", upper=True),
+        modalities=modalities_list,
         case_type_filter=None,
     )
     await session.commit()
@@ -119,12 +133,22 @@ async def activation_data_test(
     modalities: str | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivationDataItem]:
+    study_iuids_list = _extract_multi(request, "study_iuids")
+    modalities_list = _extract_multi(request, "modalities", upper=True)
+    logger.info(
+        "GET /activation-data/test/ received: rad_id=%s study_iuids=%s event=%s modalities=%s query=%s",
+        rad_id,
+        study_iuids_list,
+        event,
+        modalities_list,
+        dict(request.query_params),
+    )
     result = await get_activation_data(
         session,
         rad_id=rad_id,
-        study_iuids=_extract_multi(request, "study_iuids"),
+        study_iuids=study_iuids_list,
         event=event,
-        modalities=_extract_multi(request, "modalities", upper=True),
+        modalities=modalities_list,
         case_type_filter="test",
     )
     await session.commit()

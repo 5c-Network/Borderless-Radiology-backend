@@ -11,7 +11,7 @@ One endpoint, two body shapes:
                                       "qualified_at": "YYYY-MM-DD",
                                       "notice": {...}}
 
-Both PATCH /user/radiologist/{rad_id}/borderless. The platform returns the
+Both PATCH /user/radiologist/borderlesst/{rad_id}. The platform returns the
 rad's full state (phase, notice, commitment, qualified_at) on every call.
 
 Both return (ok: bool, err: str | None). No exceptions to caller — failures
@@ -34,14 +34,14 @@ logger = logging.getLogger(__name__)
 async def send_notice(
     rad_id: str, body: dict[str, Any] | None
 ) -> tuple[bool, str | None]:
-    """PATCH /user/radiologist/{rad_id}/borderless with notice only.
+    """PATCH /user/radiologist/borderless/{rad_id}with notice only.
 
     body is either {"notice": {...}} for BLOCK, or None for clear (we send
     {"notice": null} on the wire).
     """
     payload = body if body is not None else {"notice": None}
     return await _patch(
-        path=f"/user/radiologist/{rad_id}/borderless",
+        path=f"/user/radiologist/borderlesst/{rad_id}",
         payload=payload,
     )
 
@@ -51,7 +51,7 @@ async def send_borderless_qualified(
     qualified_at: date,
     notice: dict[str, Any],
 ) -> tuple[bool, str | None]:
-    """PATCH /user/radiologist/{rad_id}/borderless with phase + notice.
+    """PATCH /user/radiologist/borderless/{rad_id}with phase + notice.
 
     Flips the rad to the Borderless phase and shows the eligible notice in a
     single call. notice is the {"kind": "INFO", "title": ..., "body": ...}
@@ -63,7 +63,7 @@ async def send_borderless_qualified(
         "notice": notice,
     }
     return await _patch(
-        path=f"/user/radiologist/{rad_id}/borderless",
+        path=f"/user/radiologist/borderlesst/{rad_id}",
         payload=payload,
     )
 
@@ -82,11 +82,20 @@ async def _patch(
     if settings.external_callback_key:
         headers["Authorization"] = settings.external_callback_key
 
+    logger.info("PATCH %s payload=%s", url, payload)
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             resp = await client.patch(url, json=payload, headers=headers)
             if resp.status_code >= 300:
+                logger.warning(
+                    "PATCH %s failed status=%s body=%s",
+                    url,
+                    resp.status_code,
+                    resp.text[:200],
+                )
                 return False, f"http_{resp.status_code}: {resp.text[:200]}"
+            logger.info("PATCH %s ok status=%s", url, resp.status_code)
             return True, None
     except Exception as e:  # noqa: BLE001
+        logger.exception("PATCH %s raised", url)
         return False, str(e)

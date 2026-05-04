@@ -16,6 +16,7 @@ Payload shape:
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -26,6 +27,8 @@ from app.models import GradingJob
 from app.schemas import GradeCaseRequest, GradeCaseResponse, GradeResult
 from app.security import require_api_key
 from app.services.grader import enqueue_grading, run_grading_job
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["grading"], dependencies=[Depends(require_api_key)])
 
@@ -39,6 +42,11 @@ async def grade_case(
     body: GradeCaseRequest,
     session: AsyncSession = Depends(get_session),
 ) -> GradeCaseResponse:
+    logger.info(
+        "POST /grade_case received: rad_id=%s payload=%s",
+        body.rad_id,
+        body.model_dump(mode="json"),
+    )
     try:
         job = await enqueue_grading(
             session,

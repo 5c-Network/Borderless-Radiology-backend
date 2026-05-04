@@ -4,8 +4,8 @@
      No assignment tracking. No randomness.
 
   B) Random pick — no study_iuids.  We pick unused cases for this rad
-     (2 on first call, 1 thereafter), record the assignment, and return
-     them in activation-data format.
+     (settings.cases_per_call per call, default 2), record the assignment,
+     and return them in activation-data format.
 
 Response format matches the QA spec:
     [ { history, rules, dicomData }, ... ]
@@ -155,8 +155,7 @@ async def _mode_random_pick(
             message="no unused pool cases available",
         )
 
-    want = 2 if len(seen) == 0 else 1
-    want = min(want, len(unused))
+    want = min(settings.cases_per_call, len(unused))
     picked = random.sample(unused, k=want)
 
     next_number = len(seen) + 1

@@ -4,7 +4,7 @@ Audience: n8n workflow developer
 Endpoint (same for all three):
 
 
-PATCH {BASE_URL}/user/radiologist/{rad_id}/borderless
+PATCH {BASE_URL}/user/radiologist/borderlesst/{rad_id}
 Required headers:
 
 

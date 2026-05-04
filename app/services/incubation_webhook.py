@@ -6,8 +6,10 @@ Handles two events on POST /api/v1/incubation/webhook:
                     sets incubation_started_at, picks 2 unused cases filtered
                     by the rad's modality set.
 
-  case-submitted    After every "Submit & Get Next Case" click. Picks 1
-                    unused case for the rad, filtered by stored modality set.
+  case-submitted    After every "Submit & Get Next Case" click. Picks 2
+                    unused cases for the rad, filtered by the modality set
+                    in the request body. If the body's modality differs from
+                    the stored modality_preferred, updates it in place.
                     Never re-assigns a study already in case_assignments
                     for this rad.
 
@@ -107,7 +109,10 @@ async def _handle_start_reporting(
     session.add(rad)
     await session.flush()
 
-    picked = await _pick_unused(session, rad_id=rad_id, tokens=modalities, k=2, seen=set())
+    settings = get_settings()
+    picked = await _pick_unused(
+        session, rad_id=rad_id, tokens=modalities, k=settings.cases_per_call, seen=set()
+    )
     if not picked:
         return IncubationWebhookResponse(
             rad_id=rad_id,
@@ -164,13 +169,6 @@ async def _handle_case_submitted(
         )
 
     body_canonical = ",".join(modalities_from_body)
-    if body_canonical != rad.modality_preferred:
-        logger.warning(
-            "case-submitted modalities %r differ from stored %r for rad %s; using stored",
-            body_canonical,
-            rad.modality_preferred,
-            rad_id,
-        )
 
     if rad.status in _TERMINAL_STATES:
         return IncubationWebhookResponse(
@@ -197,14 +195,27 @@ async def _handle_case_submitted(
             message="pool exhausted for this rad",
         )
 
-    tokens = rad.modality_preferred.split(",")
+    tokens = modalities_from_body
     next_number = len(seen) + 1
     now = datetime.now(timezone.utc)
 
     # Try once; on IntegrityError (concurrent submitter raced us to the same
-    # study_iuid), reload seen and retry once.
+    # study_iuid), reload seen and retry once. The modality update is
+    # re-applied inside the loop so it survives a rollback.
+    picked: list[StudyGroundtruth] = []
     for attempt in (1, 2):
-        picked = await _pick_unused(session, rad_id=rad_id, tokens=tokens, k=1, seen=seen)
+        if rad.modality_preferred != body_canonical:
+            logger.info(
+                "case-submitted: updating modality_preferred for rad %s from %r to %r",
+                rad_id,
+                rad.modality_preferred,
+                body_canonical,
+            )
+            rad.modality_preferred = body_canonical
+
+        picked = await _pick_unused(
+            session, rad_id=rad_id, tokens=tokens, k=settings.cases_per_call, seen=seen
+        )
         if not picked:
             return IncubationWebhookResponse(
                 rad_id=rad_id,
@@ -215,17 +226,17 @@ async def _handle_case_submitted(
                 items=[],
                 message="no unused pool cases available",
             )
-        row = picked[0]
-        session.add(
-            CaseAssignment(
-                rad_id=rad_id,
-                study_iuid=row.study_iuid,
-                study_id=row.study_id,
-                case_number=next_number,
-                is_complex=row.is_complex,
-                assigned_at=now,
+        for i, row in enumerate(picked):
+            session.add(
+                CaseAssignment(
+                    rad_id=rad_id,
+                    study_iuid=row.study_iuid,
+                    study_id=row.study_id,
+                    case_number=next_number + i,
+                    is_complex=row.is_complex,
+                    assigned_at=now,
+                )
             )
-        )
         try:
             await session.flush()
             break
@@ -238,6 +249,7 @@ async def _handle_case_submitted(
                 raise HTTPException(
                     status_code=500, detail="could not assign case after retry"
                 )
+            rad = await session.get(RadState, rad_id)
             seen = await _load_seen(session, rad_id)
             next_number = len(seen) + 1
 
@@ -246,8 +258,8 @@ async def _handle_case_submitted(
         event=WebhookEvent.case_submitted,
         rad_status=rad.status.value,
         cases_completed=rad.cases_completed,
-        cases_assigned_now=1,
-        items=[_to_activation_item(row)],
+        cases_assigned_now=len(picked),
+        items=[_to_activation_item(r) for r in picked],
         message=None,
     )
 
