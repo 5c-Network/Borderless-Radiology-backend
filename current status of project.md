@@ -215,7 +215,7 @@ All routes (except `/health`) require `Authorization: <API_AUTH_KEY>` header (ba
 Response shape: `[{ history, rules, dicomData }, ...]`
 
 ### 4.4 Grading ([`app/api/grading.py`](app/api/grading.py))
-- `POST /api/v1/grade_case` — Returns 202 immediately. Body: `{rad_id, session_id?, study_iuid, candidate_report:{observation, impression}, submitted_at?}`. Response: `{grading_id, status}`. Grading runs in background.
+- `POST /api/v1/grade_case` — Returns 202 immediately. Body: `{rad_id, report:{observation, impression, history, modstudy, study_iuid, study_id, report_id}}`. Response: `{grading_id, status}`. Grading runs in background.
 - `GET /api/v1/grade_case/{grading_id}` — Poll for the result (grade, score, rationale, etc.).
 - `GET /api/v1/rad/{rad_id}/grades` — All grades for a rad in case-number order.
 
@@ -356,7 +356,7 @@ Copy [`.env.example`](.env.example) to `.env` and fill in. **All variables:**
 | `SLACK_WEBHOOK_URL`               | recommended | `""`                       | Ops alert webhook for 20/80/7d events. If blank, alerts are skipped (logged warning). |
 | `EXTERNAL_CALLBACK_URL`           | required for live | `""`                | Decision-system endpoint we POST checkpoint payloads to. If blank, the call is skipped and `callback_status` stays `pending`. |
 | `EXTERNAL_CALLBACK_KEY`           | optional  | `""`                        | Sent as `X-API-Key` header on the external callback POST.               |
-| `API_URL`                         | optional  | `http://localhost:8000`     | Self-reference (currently unused in code, kept for forward-compat).     |
+| `API_URL`                         | optional  | `https://api.borderless.5cnetwork.com`     | Self-reference (currently unused in code, kept for forward-compat).     |
 | `SEVEN_DAY_JOB_ENABLED`           | no        | `true`                      | Enables the APScheduler 7-day sweep.                                    |
 | `SEVEN_DAY_JOB_INTERVAL_MINUTES`  | no        | `60`                        | How often to sweep. 60 min is fine for prod.                            |
 
@@ -448,7 +448,7 @@ alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
 # 6. Smoke test
-curl http://localhost:8000/health
+curl https://api.borderless.5cnetwork.com/health
 # {"status":"ok"}
 ```
 
@@ -457,22 +457,22 @@ curl http://localhost:8000/health
 TOKEN="your-api-auth-key"
 
 # ingest one row
-curl -X POST http://localhost:8000/api/v1/study-groundtruth \
+curl -X POST https://api.borderless.5cnetwork.com/api/v1/study-groundtruth \
   -H "Authorization: $TOKEN" -H "Content-Type: application/json" \
   -d '[{"study_id":1,"study_iuid":"1.2.3","modstudy":"CT_CHEST","groundtruth_pathology":"Right lower lobe consolidation."}]'
 
 # classify it (LLM call)
-curl -X POST "http://localhost:8000/api/v1/study-groundtruth/classify" \
+curl -X POST "https://api.borderless.5cnetwork.com/api/v1/study-groundtruth/classify" \
   -H "Authorization: $TOKEN"
 
 # fetch activation data — also creates rad_state + assignment
-curl "http://localhost:8000/api/v1/activation-data/?rad_id=rad_test" \
+curl "https://api.borderless.5cnetwork.com/api/v1/activation-data/?rad_id=rad_test" \
   -H "Authorization: $TOKEN"
 
 # grade a case
-curl -X POST http://localhost:8000/api/v1/grade_case \
+curl -X POST https://api.borderless.5cnetwork.com/api/v1/grade_case \
   -H "Authorization: $TOKEN" -H "Content-Type: application/json" \
-  -d '{"rad_id":"rad_test","study_iuid":"1.2.3","candidate_report":{"observation":"...","impression":"..."}}'
+  -d '{"rad_id":"rad_test","report":{"observation":"...","impression":"...","history":"...","modstudy":"Xray Radiograph Chest","study_iuid":"1.2.3","study_id":"1234533","report_id":"287468"}}'
 ```
 
 ---

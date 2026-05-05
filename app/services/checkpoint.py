@@ -8,7 +8,7 @@ unique constraint on checkpoint_events.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -38,7 +38,12 @@ from app.services.grade_utils import (
     quality_met,
 )
 from app.services.notification_copy import build_notice
-from app.services.slack import build_slack_text, send_slack_alert
+from app.services.slack import (
+    build_slack_text,
+    format_slot_compliance_block,
+    send_slack_alert,
+)
+from app.services.slot_compliance import fetch_slot_compliance_rows
 from app.services.summary import build_summary
 
 logger = logging.getLogger(__name__)
@@ -203,6 +208,24 @@ async def fire_checkpoint(
     # Outbound side effects. These run inside the same transaction but aren't
     # transactional themselves — if they fail we record the error and keep the
     # event row. Retries handled via checkpoint.callback_status = pending.
+    slot_summary: str | None = None
+    if kind == CheckpointKind.terminal_7_days and rad is not None:
+        # Day-wise compliance for the rad's incubation window. Defaults to
+        # the past 7 IST days when incubation_started_at isn't set (defensive).
+        end_d = datetime.now(_IST).date()
+        if rad.incubation_started_at is not None:
+            start_d = rad.incubation_started_at.astimezone(_IST).date()
+        else:
+            start_d = end_d - timedelta(days=7)
+        try:
+            rows = await fetch_slot_compliance_rows(session, rad_id, start_d, end_d)
+            slot_summary = format_slot_compliance_block(rows)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "fire_checkpoint: slot compliance fetch failed for %s: %s",
+                rad_id, exc,
+            )
+
     slack_text = build_slack_text(
         kind=kind,
         rad_id=rad_id,
@@ -211,6 +234,7 @@ async def fire_checkpoint(
         overall_grade=overall_grade,
         quality_met=is_quality_met,
         summary=summary,
+        slot_summary=slot_summary,
     )
     ok, err = await send_slack_alert(slack_text)
     event.slack_sent = ok

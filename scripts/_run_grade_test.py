@@ -1,6 +1,7 @@
 """End-to-end test of the grade_case + checkpoint + notification flow.
 
-Targets a configurable rad_id against the ngrok-tunneled FastAPI server.
+Targets a configurable rad_id against the deployed FastAPI server
+(https://api.borderless.5cnetwork.com).
 
 Usage:
     python scripts/_run_grade_test.py \
@@ -37,7 +38,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-NGROK_URL = "https://unbeatable-milagro-unshunned.ngrok-free.dev"
+API_BASE_URL = os.environ.get(
+    "API_BASE_URL", "https://api.borderless.5cnetwork.com"
+)
 MODALITIES = ["CT", "MRI"]
 AUTH = os.environ.get("API_AUTH_KEY", "to5y7HyOAx3Q1")
 HEADERS = {"Authorization": AUTH, "Content-Type": "application/json"}
@@ -74,7 +77,7 @@ async def seed_assignments_to(
             "modalities": MODALITIES,
         }
         r = await client.post(
-            f"{NGROK_URL}/api/v1/incubation/webhook", json=body, headers=HEADERS
+            f"{API_BASE_URL}/api/v1/incubation/webhook", json=body, headers=HEADERS
         )
         r.raise_for_status()
         data = r.json()
@@ -203,10 +206,12 @@ async def post_grade_cases(
                 "history": (gt.get("history") or "")[:2000],
                 "modstudy": gt.get("modstudy") or "",
                 "study_iuid": gt["study_iuid"],
+                "study_id": "1234533",
+                "report_id": "287468",
             },
         }
         r = await client.post(
-            f"{NGROK_URL}/api/v1/grade_case", json=payload, headers=HEADERS
+            f"{API_BASE_URL}/api/v1/grade_case", json=payload, headers=HEADERS
         )
         if r.status_code != 202:
             print(f"[post {i+1}] FAIL HTTP {r.status_code}: {r.text[:200]}")
@@ -244,7 +249,7 @@ async def poll_until_done(
                 out.append({**item, "status": "post_error"})
                 continue
             r = await client.get(
-                f"{NGROK_URL}/api/v1/grade_case/{item['grading_id']}",
+                f"{API_BASE_URL}/api/v1/grade_case/{item['grading_id']}",
                 headers=HEADERS,
             )
             if r.status_code != 200:
@@ -305,7 +310,7 @@ async def amain(rad_id: str, target: int, profile: str) -> None:
     rad_id_int = int(rad_id)
     async with httpx.AsyncClient(timeout=30.0) as client:
         r = await client.get(
-            f"{NGROK_URL}/api/v1/rad/{rad_id}/grades", headers=HEADERS
+            f"{API_BASE_URL}/api/v1/rad/{rad_id}/grades", headers=HEADERS
         )
         r.raise_for_status()
 

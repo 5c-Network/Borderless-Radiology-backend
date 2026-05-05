@@ -8,7 +8,9 @@ Payload shape:
         "impression": "...",
         "history": "...",
         "modstudy": "Xray Radiograph Chest",
-        "study_iuid": "..."
+        "study_iuid": "...",
+        "study_id": "1234533",
+        "report_id": "287468"
       }
     }
 """

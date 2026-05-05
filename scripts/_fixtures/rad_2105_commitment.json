@@ -1,0 +1,47 @@
+{
+  "borderless": {
+    "phase": "INCUBATION",
+    "notice": null,
+    "commitment": {
+      "slots": [
+        {
+          "day": "MON",
+          "end_hour": 3,
+          "start_hour": 0
+        },
+        {
+          "day": "TUE",
+          "end_hour": 3,
+          "start_hour": 0
+        },
+        {
+          "day": "WED",
+          "end_hour": 3,
+          "start_hour": 0
+        },
+        {
+          "day": "THU",
+          "end_hour": 3,
+          "start_hour": 0
+        },
+        {
+          "day": "FRI",
+          "end_hour": 3,
+          "start_hour": 0
+        },
+        {
+          "day": "SAT",
+          "end_hour": 3,
+          "start_hour": 0
+        }
+      ],
+      "cases_per_hour": 3,
+      "hours_per_week": 18
+    },
+    "qualified_at": null,
+    "agreement_pdf_url": null,
+    "incubation_start_date": "2026-04-30"
+  },
+  "shown_ct_mri_modal": true,
+  "shown_prodigi_disclaimer_modal": true
+}

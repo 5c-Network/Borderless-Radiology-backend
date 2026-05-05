@@ -129,6 +129,16 @@ class RadState(Base):
     # body's modality differs.
     modality_preferred: Mapped[str | None] = mapped_column(String(32))
 
+    # Raw JSON of transform.RadDetails.other_details for this rad. Populated
+    # by the T1 hook on first start-reporting; consumed by the T2 cron to
+    # parse borderless.commitment.slots[]. Stored as text byte-identical to
+    # the ClickHouse value (no wrapping). The other_details_updated_at
+    # column is auto-stamped by a Postgres trigger when this column changes.
+    other_details: Mapped[str | None] = mapped_column(Text)
+    other_details_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -138,6 +148,39 @@ class RadState(Base):
 
     assignments: Mapped[list["CaseAssignment"]] = relationship(back_populates="rad")
     gradings: Mapped[list["GradingJob"]] = relationship(back_populates="rad")
+
+
+class RadSlotStatus(Base):
+    """Per-rad-per-slot-per-day compliance row. Written by the T2 cron.
+
+    All business columns are text by spec — start_hour/end_hour/minutes are
+    cast at the application layer when needed. PK uniquely identifies one
+    slot instance: a rad's commitment for a specific calendar date and
+    specific start hour. Multi-slot days (e.g., MON 3-6 and MON 18-22) yield
+    one row per slot.
+    """
+
+    __tablename__ = "rad_slot_status"
+    __table_args__ = {"schema": SCHEMA}
+
+    rad_fk: Mapped[str] = mapped_column(Text, primary_key=True)
+    slot_date: Mapped[str] = mapped_column(Text, primary_key=True)
+    start_hour: Mapped[str] = mapped_column(Text, primary_key=True)
+
+    slot_name: Mapped[str] = mapped_column(Text, nullable=False)
+    end_hour: Mapped[str] = mapped_column(Text, nullable=False)
+    committed_hours: Mapped[str] = mapped_column(Text, nullable=False)
+    committed_days: Mapped[str] = mapped_column(Text, nullable=False)
+    total_active_minutes: Mapped[str] = mapped_column(Text, nullable=False)
+    compliance_status: Mapped[str] = mapped_column(Text, nullable=False)  # present|absent
+    rad_availability: Mapped[str] = mapped_column(Text, nullable=False)  # full|partial|nil
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    last_updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 class CaseAssignment(Base):

@@ -104,6 +104,8 @@ class Report(BaseModel):
     history: str = ""
     modstudy: str = ""
     study_iuid: str
+    study_id: str
+    report_id: str
 
 
 class GradeCaseRequest(BaseModel):

@@ -18,3 +18,9 @@ ngrok.zip
 *.csv
 scripts/_probe_rad.py
 scripts/_run_grade_test.py
+test_rad_details.py
+test_rad_commitment.py
+test_rad_slot_compliance.py
+test_slot_compliance_job.py
+test_slack_format.py
+test_seven_day_timeout.py

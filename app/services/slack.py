@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import date
 
 import httpx
 
@@ -18,6 +19,50 @@ _KIND_HEADERS: dict[CheckpointKind, str] = {
     CheckpointKind.terminal_7_days: "7-day timeout",
 }
 
+_DOW = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"]
+
+
+def format_slot_compliance_block(rows: list[dict]) -> str:
+    """Render rad_slot_status rows as a fixed-width Slack block.
+
+    Layout (one line per slot, multi-slot days produce multiple lines):
+        *Slot compliance (incubation window):*
+        ```
+        2026-04-30 THU | 12AM - 3AM |   0 min |  0% | nil    | absent
+        2026-05-01 FRI | 12AM - 3AM | 180 min |100% | full   | present
+        ...
+        ```
+
+    Returns "*Slot compliance (incubation window):* _no rows scored yet_"
+    when the list is empty (e.g., cron hasn't run for this rad yet).
+    """
+    if not rows:
+        return "*Slot compliance (incubation window):* _no rows scored yet_"
+
+    lines = ["*Slot compliance (incubation window):*", "```"]
+    for r in rows:
+        try:
+            mins = int(r["total_active_minutes"])
+            committed_min = int(r["committed_hours"]) * 60
+            pct = (mins * 100 // committed_min) if committed_min else 0
+        except (TypeError, ValueError):
+            mins = r.get("total_active_minutes", "?")
+            pct = "?"
+        # Day-of-week short label from slot_date.
+        try:
+            dow = _DOW[date.fromisoformat(str(r["slot_date"])).weekday()]
+        except Exception:  # noqa: BLE001
+            dow = "?"
+        slot_name = str(r.get("slot_name", "?"))
+        avail = str(r.get("rad_availability", "?"))
+        comp = str(r.get("compliance_status", "?"))
+        lines.append(
+            f"{r['slot_date']} {dow} | {slot_name:<11s} | "
+            f"{mins:>4} min | {pct:>3}% | {avail:<7s} | {comp}"
+        )
+    lines.append("```")
+    return "\n".join(lines)
+
 
 def build_slack_text(
     *,
@@ -28,6 +73,7 @@ def build_slack_text(
     overall_grade: str,
     quality_met: bool,
     summary: str,
+    slot_summary: str | None = None,
 ) -> str:
     header = _KIND_HEADERS[kind]
     quality_line = "YES" if quality_met else f"NO (avg {avg_score:.2f})"
@@ -37,13 +83,16 @@ def build_slack_text(
     else:
         count_line = f"Cases evaluated: {cases_evaluated}"
 
-    return (
+    text = (
         f"*Rad {rad_id} — {header}*\n"
         f"{count_line}\n"
         f"Quality met (grade 1): *{quality_line}*\n"
         f"Avg score: {avg_score:.2f} / 10 (overall grade {overall_grade})\n"
         f"{summary}"
     )
+    if slot_summary:
+        text = f"{text}\n\n{slot_summary}"
+    return text
 
 
 async def send_slack_alert(text: str) -> tuple[bool, str | None]:
