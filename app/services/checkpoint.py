@@ -146,7 +146,6 @@ async def fire_checkpoint(
         {
             "case_number": g.case_number,
             "study_iuid": g.study_iuid,
-            "study_id": g.study_id,
             "grade": g.grade,
             "score_10pt": float(g.score_10pt) if g.score_10pt is not None else None,
             "critical_miss": bool(g.critical_miss),

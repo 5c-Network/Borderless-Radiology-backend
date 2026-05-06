@@ -206,8 +206,8 @@ async def post_grade_cases(
                 "history": (gt.get("history") or "")[:2000],
                 "modstudy": gt.get("modstudy") or "",
                 "study_iuid": gt["study_iuid"],
-                "study_id": "1234533",
-                "report_id": "287468",
+                "study_id": 1234533,
+                "report_id": 287468,
             },
         }
         r = await client.post(

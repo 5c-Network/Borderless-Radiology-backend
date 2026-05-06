@@ -95,7 +95,6 @@ async def enqueue_grading(
         job.error_message = f"validation: study_iuid {study_iuid} not in Study_Groundtruth"[:2000]
         return job
 
-    job.study_id = gt.study_id
     job.ground_truth_snapshot = {
         "main_pathologies": gt.main_pathologies,
         "incidental_findings": gt.incidental_findings,

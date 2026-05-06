@@ -9,8 +9,8 @@ Payload shape:
         "history": "...",
         "modstudy": "Xray Radiograph Chest",
         "study_iuid": "...",
-        "study_id": "1234533",
-        "report_id": "287468"
+        "study_id": 1234533,
+        "report_id": 287468
       }
     }
 """
@@ -106,7 +106,6 @@ async def list_rad_grades(
         {
             "case_number": r.case_number,
             "study_iuid": r.study_iuid,
-            "study_id": r.study_id,
             "status": r.status.value,
             "grade": r.grade,
             "score_10pt": float(r.score_10pt) if r.score_10pt is not None else None,

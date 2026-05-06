@@ -472,7 +472,7 @@ curl "https://api.borderless.5cnetwork.com/api/v1/activation-data/?rad_id=rad_te
 # grade a case
 curl -X POST https://api.borderless.5cnetwork.com/api/v1/grade_case \
   -H "Authorization: $TOKEN" -H "Content-Type: application/json" \
-  -d '{"rad_id":"rad_test","report":{"observation":"...","impression":"...","history":"...","modstudy":"Xray Radiograph Chest","study_iuid":"1.2.3","study_id":"1234533","report_id":"287468"}}'
+  -d '{"rad_id":"rad_test","report":{"observation":"...","impression":"...","history":"...","modstudy":"Xray Radiograph Chest","study_iuid":"1.2.3","study_id":1234533,"report_id":287468}}'
 ```
 
 ---

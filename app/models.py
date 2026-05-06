@@ -230,7 +230,6 @@ class GradingJob(Base):
     )
     rad_id: Mapped[str] = mapped_column(String(64), nullable=False)
     study_iuid: Mapped[str] = mapped_column(String(255), nullable=False)
-    study_id: Mapped[int | None] = mapped_column(Integer)
     case_number: Mapped[int | None] = mapped_column(Integer)
 
     submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
