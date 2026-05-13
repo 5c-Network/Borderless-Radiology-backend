@@ -87,6 +87,11 @@ class StudyGroundtruth(Base):
     impression: Mapped[str | None] = mapped_column(Text)
     age: Mapped[str | None] = mapped_column(String(16))
 
+    # Source report identifier from upstream (ClickHouse Int32). Distinct from
+    # the rad-submitted report_id in app.schemas.Report — this one tags the
+    # pool row's origin report.
+    report_id: Mapped[int | None] = mapped_column(Integer)
+
     # Endpoint partition (migration 20260429_0004). 'test' rows are served
     # only by /activation-data/test (DICOMs already on the destination
     # server, no yotta hop). NULL/other values flow through the default
@@ -204,6 +209,7 @@ class CaseAssignment(Base):
     study_id: Mapped[int] = mapped_column(Integer, nullable=False)
     case_number: Mapped[int] = mapped_column(Integer, nullable=False)
     is_complex: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    case_type: Mapped[str | None] = mapped_column(String(20))
     assigned_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -251,6 +257,11 @@ class GradingJob(Base):
     ground_truth_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     candidate_snapshot: Mapped[dict | None] = mapped_column(JSONB)
     raw_payload: Mapped[dict | None] = mapped_column(JSONB)
+
+    # Free-form audit trail. Shape (informational, not enforced):
+    #   {report_fk, revised_report_fk, delta, severity, grade, overcall_type,
+    #    status, type, dispute, severity_history}
+    audit_json: Mapped[dict | None] = mapped_column(JSONB)
 
     error_message: Mapped[str | None] = mapped_column(Text)
 

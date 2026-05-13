@@ -141,6 +141,11 @@ async def _mode_random_pick(
             stmt = stmt.where(StudyGroundtruth.modality.in_(tokens))
     if case_type_filter == "test":
         stmt = stmt.where(StudyGroundtruth.case_type == "test")
+    elif case_type_filter in ("complex study", "non-complex study"):
+        # n8n sets this for allowlisted rads (currently 'non-complex study'
+        # only). Exact-match — NULL rows are excluded so partially-tagged
+        # pools don't accidentally leak through during rollout.
+        stmt = stmt.where(StudyGroundtruth.case_type == case_type_filter)
     else:
         stmt = stmt.where(
             (StudyGroundtruth.case_type.is_(None))
@@ -168,6 +173,7 @@ async def _mode_random_pick(
                 study_id=row.study_id,
                 case_number=next_number + i,
                 is_complex=row.is_complex,
+                case_type=row.case_type,
                 assigned_at=now,
             )
         )

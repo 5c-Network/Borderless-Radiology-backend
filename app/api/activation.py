@@ -6,6 +6,9 @@
         &event=start-reporting|case-submitted   (optional — informational)
         &modalities=CT,MRI                 (optional — stored as modality_preferred
                                             on first call; restricts the pick)
+        &case_type=complex study|non-complex study   (optional — restricts the
+                                            random pick to one mod-study bucket.
+                                            n8n sets this for allowlisted rads.)
     Authorization: <api_auth_key>
 
     GET /api/v1/activation-data/test/
@@ -30,6 +33,7 @@ Response: JSON array of {history, rules, dicomData, for_candidate}.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -97,16 +101,26 @@ async def activation_data(
             "modality_preferred on the rad's first call."
         ),
     ),
+    case_type: Literal["complex study", "non-complex study"] | None = Query(
+        default=None,
+        description=(
+            "Restrict the random pick to one mod-study bucket. "
+            "Accepts 'complex study' or 'non-complex study'. Omitted by "
+            "default — preserves existing behaviour (excludes 'test', "
+            "accepts everything else including NULL case_type)."
+        ),
+    ),
     session: AsyncSession = Depends(get_session),
 ) -> list[ActivationDataItem]:
     study_iuids_list = _extract_multi(request, "study_iuids")
     modalities_list = _extract_multi(request, "modalities", upper=True)
     logger.info(
-        "GET /activation-data/ received: rad_id=%s study_iuids=%s event=%s modalities=%s query=%s",
+        "GET /activation-data/ received: rad_id=%s study_iuids=%s event=%s modalities=%s case_type=%s query=%s",
         rad_id,
         study_iuids_list,
         event,
         modalities_list,
+        case_type,
         dict(request.query_params),
     )
     result = await get_activation_data(
@@ -115,7 +129,7 @@ async def activation_data(
         study_iuids=study_iuids_list,
         event=event,
         modalities=modalities_list,
-        case_type_filter=None,
+        case_type_filter=case_type,
     )
     await session.commit()
     return result.items

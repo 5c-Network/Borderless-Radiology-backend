@@ -50,6 +50,7 @@ async def ingest_rows(
                 dicom_metadata=r.dicom_metadata,
                 rules=r.rules,
                 is_complex=r.is_complex,
+                report_id=r.report_id,
             )
             .on_conflict_do_update(
                 index_elements=[StudyGroundtruth.study_id],
@@ -62,6 +63,7 @@ async def ingest_rows(
                     "dicom_metadata": r.dicom_metadata,
                     "rules": r.rules,
                     "is_complex": r.is_complex,
+                    "report_id": r.report_id,
                 },
             )
         )
@@ -129,6 +131,7 @@ async def _list_rows(session: AsyncSession) -> list[StudyGroundtruthOut]:
             main_pathologies=r.main_pathologies or [],
             incidental_findings=r.incidental_findings or [],
             classified=r.classified_at is not None,
+            report_id=r.report_id,
         )
         for r in rows
     ]

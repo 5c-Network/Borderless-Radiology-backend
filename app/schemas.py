@@ -20,6 +20,7 @@ class StudyGroundtruthIngest(BaseModel):
     dicom_metadata: str | None = None  # stored as text; JSON string expected
     rules: str | None = None  # stored as text; JSON string expected
     is_complex: bool = False
+    report_id: int | None = None
 
 
 class StudyGroundtruthOut(BaseModel):
@@ -31,6 +32,7 @@ class StudyGroundtruthOut(BaseModel):
     main_pathologies: list[str]
     incidental_findings: list[str]
     classified: bool
+    report_id: int | None = None
 
 
 # ---------- Activation-data endpoint ----------

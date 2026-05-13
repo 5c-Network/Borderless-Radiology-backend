@@ -24,3 +24,15 @@ test_rad_slot_compliance.py
 test_slot_compliance_job.py
 test_slack_format.py
 test_seven_day_timeout.py
+
+# Generated data / seed scripts — may contain PHI. Alembic migrations are
+# .py files under alembic/versions/ and are NOT excluded by this rule.
+scripts/*.sql
+*.sql
+
+# Local n8n / tunnel artefacts
+n8n.json
+if.json
+ngrok.log
+uvicorn.log
+nohup.out
