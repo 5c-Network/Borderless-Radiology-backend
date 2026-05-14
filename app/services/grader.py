@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -23,6 +24,7 @@ from app.models import (
     StudyGroundtruth,
 )
 from app.schemas import Report
+from app.services.audit_callback import post_audit_result
 from app.services.checkpoint import maybe_fire_case_count_checkpoint
 from app.services.grade_utils import score_from_grade
 from app.services.llm import LLMError, get_llm
@@ -169,3 +171,7 @@ async def run_grading_job(grading_id: str) -> None:
 
         async with session.begin():
             await maybe_fire_case_count_checkpoint(session, job.rad_id)
+
+    # Fire-and-forget audit POST to 5cnetwork. Uses its own session and is
+    # safe to fail — never affects the grading row outcome.
+    asyncio.create_task(post_audit_result(grading_id))

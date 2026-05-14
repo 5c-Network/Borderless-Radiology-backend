@@ -124,10 +124,35 @@ DERIVED FLAGS
 - related_to_primary_indication = informational only (see DEFINITIONS)
 
 RATIONALE
-Two lines max, separated by "\\n".
-Line 1: report main_gt_count, main_errors, incidental_errors and which
-        main pathologies were detected vs missed.
-Line 2: name the grading rule that fired and why this grade.
+A single conclusive clinical sentence (max two if absolutely needed) that
+states the outcome and names every relevant pathology by its full
+descriptor — never as counts, codes, or "rule fired" language.
+
+Structure:
+- Lead with the verdict: "Critical miss (Grade 3B)" for 3A/3B,
+  "Grade 2A" / "Grade 2B" / "Grade 1" otherwise.
+- Follow with a clinically-readable phrase describing what was detected
+  and/or missed (use the names from the ground-truth lists verbatim).
+- No statistics. No phrases like "main_gt_count", "main_errors >= 1",
+  "rule fired", "{n} errors", etc.
+
+EXAMPLES
+- Grade 1:
+  "Grade 1: all main pathologies detected (<gt1>, <gt2>, ...) with no
+   overcalls."
+- Grade 2A (no mains, some incidentals missed):
+  "Grade 2A: no main pathologies in ground truth; missed incidental
+   findings of <inc1> and <inc2>."
+- Grade 2B (mains detected, incidentals missed):
+  "Grade 2B: all main pathologies (<gt1>, <gt2>) detected, but missed
+   incidental findings of <inc1> and <inc2>."
+- Grade 3A (some mains missed in a large GT set):
+  "Grade 3A: missed <missed1> while correctly detecting <det1>, <det2>,
+   <det3>, <det4>."
+- Grade 3B (critical miss):
+  "Critical miss (Grade 3B) due to failure to detect <missed1>,
+   <missed2>, <missed3>, and incidental findings of <inc1>, <inc2>,
+   <inc3>."
 
 OUTPUT JSON SCHEMA
 {
@@ -141,7 +166,7 @@ OUTPUT JSON SCHEMA
   "incidental_findings_detected": ["<string>", ...],
   "incidental_findings_missed": ["<string>", ...],
   "overcalls": ["<string>", ...],
-  "rationale": "<line1>\\n<line2>"
+  "rationale": "<single conclusive clinical sentence>"
 }"""
 
 USER_TEMPLATE_GRADING = """STUDY: {study_iuid}

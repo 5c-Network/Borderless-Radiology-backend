@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     external_callback_url: str = Field(default="", alias="EXTERNAL_CALLBACK_URL")
     external_callback_key: str = Field(default="", alias="EXTERNAL_CALLBACK_KEY")
 
+    # Post-grading audit POST to api.5cnetwork.com/report/audit-result.
+    # Empty url disables; service still writes the payload to
+    # grading_jobs.audit_json so the local audit trail is preserved.
+    audit_api_url: str = Field(default="", alias="AUDIT_API_URL")
+    audit_api_auth_key: str = Field(default="", alias="AUDIT_API_AUTH_KEY")
+    audit_api_enabled: bool = Field(default=True, alias="AUDIT_API_ENABLED")
+
     seven_day_job_enabled: bool = Field(default=True, alias="SEVEN_DAY_JOB_ENABLED")
     # Cron lands on Day 8 at 00:00 IST for any rad whose 7-day window has
     # ended. IST chosen to match incubation_started_at semantics in workflow.
